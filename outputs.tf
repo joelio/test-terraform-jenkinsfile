@@ -1,0 +1,1 @@
+<html><body>You are being <a href="https://raw.githubusercontent.com/terraform-aws-modules/terraform-aws-ec2-instance/master/examples/basic/outputs.tf">redirected</a>.</body></html>
