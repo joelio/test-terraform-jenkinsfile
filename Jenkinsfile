@@ -1,7 +1,7 @@
 @Library(['terraform-pipeline@v5.12']) _
 
 Jenkinsfile.init(this)
-
+TerraformPlugin.withVersion('0.12.29')
 
 ValidateFormatPlugin.init()
 TerraformFormatCommand.withRecursive().withDiff()
