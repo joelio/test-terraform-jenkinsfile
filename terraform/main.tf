@@ -129,4 +129,9 @@ resource "aws_instance" "web" {
   # backend instances.
   subnet_id = aws_subnet.default.id
 
+  user_data = "${data.template_file.user_data.rendered}"
+
+}
+data "template_file" "user_data" {
+  template = "${file("${path.module}/userdata.tpl")}"
 }
