@@ -133,5 +133,9 @@ resource "aws_instance" "web" {
 
 }
 data "template_file" "user_data" {
-  template = "${file("${path.module}/userdata.tpl")}"
+  template = "${file("${path.module}/userdata.sh")}"
+  vars = {
+    instance_text = "Hello from blah"
+    instance_port = "80"
+  }
 }
