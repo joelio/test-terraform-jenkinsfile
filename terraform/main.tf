@@ -28,7 +28,7 @@ resource "aws_subnet" "default" {
 
 # A security group for the ELB so it is accessible via the web
 resource "aws_security_group" "elb" {
-  name        = "terraform-pipeline-demo.{var.environment}"
+  name        = "terraform-pipeline-demo.${var.environment}"
   description = "Used in the terraform"
   vpc_id      = aws_vpc.default.id
 
