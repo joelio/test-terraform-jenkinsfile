@@ -1,175 +1,146 @@
+terraform {
+  required_version = ">= 0.12"
+}
+
 provider "aws" {
-  region = "eu-west-1"
+  region = var.aws_region
 }
 
-locals {
-  user_data = <<EOF
-#!/bin/bash
-echo "Hello Terraform!"
-EOF
+# Create a VPC to launch our instances into
+resource "aws_vpc" "default" {
+  cidr_block = "10.0.0.0/16"
 }
 
-##################################################################
-# Data sources to get VPC, subnet, security group and AMI details
-##################################################################
-data "aws_vpc" "default" {
-  default = true
+# Create an internet gateway to give our subnet access to the outside world
+resource "aws_internet_gateway" "default" {
+  vpc_id = aws_vpc.default.id
 }
 
-data "aws_subnet_ids" "all" {
-  vpc_id = data.aws_vpc.default.id
+# Grant the VPC internet access on its main route table
+resource "aws_route" "internet_access" {
+  route_table_id         = aws_vpc.default.main_route_table_id
+  destination_cidr_block = "0.0.0.0/0"
+  gateway_id             = aws_internet_gateway.default.id
 }
 
-data "aws_ami" "amazon_linux" {
-  most_recent = true
+# Create a subnet to launch our instances into
+resource "aws_subnet" "default" {
+  vpc_id                  = aws_vpc.default.id
+  cidr_block              = "10.0.1.0/24"
+  map_public_ip_on_launch = true
+}
 
-  owners = ["amazon"]
+# A security group for the ELB so it is accessible via the web
+resource "aws_security_group" "elb" {
+  name        = "terraform_example_elb"
+  description = "Used in the terraform"
+  vpc_id      = aws_vpc.default.id
 
-  filter {
-    name = "name"
-
-    values = [
-      "amzn-ami-hvm-*-x86_64-gp2",
-    ]
+  # HTTP access from anywhere
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
-  filter {
-    name = "owner-alias"
-
-    values = [
-      "amazon",
-    ]
-  }
-}
-
-module "security_group" {
-  source  = "terraform-aws-modules/security-group/aws"
-  version = "~> 3.0"
-
-  name        = "example"
-  description = "Security group for example usage with EC2 instance"
-  vpc_id      = data.aws_vpc.default.id
-
-  ingress_cidr_blocks = ["0.0.0.0/0"]
-  ingress_rules       = ["http-80-tcp", "all-icmp"]
-  egress_rules        = ["all-all"]
-}
-
-resource "aws_eip" "this" {
-  vpc      = true
-  instance = module.ec2.id[0]
-}
-
-resource "aws_placement_group" "web" {
-  name     = "hunky-dory-pg"
-  strategy = "cluster"
-}
-
-resource "aws_kms_key" "this" {
-}
-
-resource "aws_network_interface" "this" {
-  count = 1
-
-  subnet_id = tolist(data.aws_subnet_ids.all.ids)[count.index]
-}
-
-module "ec2" {
-  source = "../../"
-
-  instance_count = 1
-
-  name          = "example-normal"
-  ami           = data.aws_ami.amazon_linux.id
-  instance_type = "c5.large"
-  subnet_id     = tolist(data.aws_subnet_ids.all.ids)[0]
-  //  private_ips                 = ["172.31.32.5", "172.31.46.20"]
-  vpc_security_group_ids      = [module.security_group.this_security_group_id]
-  associate_public_ip_address = true
-  placement_group             = aws_placement_group.web.id
-
-  user_data_base64 = base64encode(local.user_data)
-
-  root_block_device = [
-    {
-      volume_type = "gp2"
-      volume_size = 10
-    },
-  ]
-
-  ebs_block_device = [
-    {
-      device_name = "/dev/sdf"
-      volume_type = "gp2"
-      volume_size = 5
-      encrypted   = true
-      kms_key_id  = aws_kms_key.this.arn
-    }
-  ]
-
-  tags = {
-    "Env"      = "Private"
-    "Location" = "Secret"
+  # outbound internet access
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
   }
 }
 
-module "ec2_with_t2_unlimited" {
-  source = "../../"
+# Our default security group to access
+# the instances over SSH and HTTP
+resource "aws_security_group" "default" {
+  name        = "terraform_example"
+  description = "Used in the terraform"
+  vpc_id      = aws_vpc.default.id
 
-  instance_count = 1
+  # SSH access from anywhere
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
 
-  name          = "example-t2-unlimited"
-  ami           = data.aws_ami.amazon_linux.id
+  # HTTP access from the VPC
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["10.0.0.0/16"]
+  }
+
+  # outbound internet access
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+resource "aws_elb" "web" {
+  name = "terraform-example-elb"
+
+  subnets         = [aws_subnet.default.id]
+  security_groups = [aws_security_group.elb.id]
+  instances       = [aws_instance.web.id]
+
+  listener {
+    instance_port     = 80
+    instance_protocol = "http"
+    lb_port           = 80
+    lb_protocol       = "http"
+  }
+}
+
+resource "aws_key_pair" "auth" {
+  key_name   = var.key_name
+  public_key = file(var.public_key_path)
+}
+
+resource "aws_instance" "web" {
+  # The connection block tells our provisioner how to
+  # communicate with the resource (instance)
+  connection {
+    type = "ssh"
+    # The default username for our AMI
+    user = "ubuntu"
+    host = self.public_ip
+    # The connection will use the local SSH agent for authentication.
+  }
+
   instance_type = "t2.micro"
-  cpu_credits   = "unlimited"
-  subnet_id     = tolist(data.aws_subnet_ids.all.ids)[0]
-  //  private_ip = "172.31.32.10"
-  vpc_security_group_ids      = [module.security_group.this_security_group_id]
-  associate_public_ip_address = true
-}
 
-module "ec2_with_t3_unlimited" {
-  source = "../../"
+  # Lookup the correct AMI based on the region
+  # we specified
+  ami = var.aws_amis[var.aws_region]
 
-  instance_count = 1
+  # The name of our SSH keypair we created above.
+  key_name = aws_key_pair.auth.id
 
-  name                        = "example-t3-unlimited"
-  ami                         = data.aws_ami.amazon_linux.id
-  instance_type               = "t3.large"
-  cpu_credits                 = "unlimited"
-  subnet_id                   = tolist(data.aws_subnet_ids.all.ids)[0]
-  vpc_security_group_ids      = [module.security_group.this_security_group_id]
-  associate_public_ip_address = true
-}
+  # Our Security group to allow HTTP and SSH access
+  vpc_security_group_ids = [aws_security_group.default.id]
 
-module "ec2_with_network_interface" {
-  source = "../../"
+  # We're going to launch into the same subnet as our ELB. In a production
+  # environment it's more common to have a separate private subnet for
+  # backend instances.
+  subnet_id = aws_subnet.default.id
 
-  instance_count = 1
-
-  name            = "example-network"
-  ami             = data.aws_ami.amazon_linux.id
-  instance_type   = "c5.large"
-  placement_group = aws_placement_group.web.id
-
-  network_interface = [
-    {
-      device_index          = 0
-      network_interface_id  = aws_network_interface.this[0].id
-      delete_on_termination = false
-    }
-  ]
-}
-
-# This instance won't be created
-module "ec2_zero" {
-  source = "../../"
-
-  instance_count = 0
-
-  name                   = "example-zero"
-  ami                    = data.aws_ami.amazon_linux.id
-  instance_type          = "c5.large"
-  subnet_id              = tolist(data.aws_subnet_ids.all.ids)[0]
-  vpc_security_group_ids = [module.security_group.this_security_group_id]
+  # We run a remote provisioner on the instance after creating it.
+  # In this case, we just install nginx and start it. By default,
+  # this should be on port 80
+  provisioner "remote-exec" {
+    inline = [
+      "sudo apt-get -y update",
+      "sudo apt-get -y install nginx",
+      "sudo service nginx start",
+    ]
+  }
 }
