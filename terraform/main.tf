@@ -97,7 +97,7 @@ resource "aws_elb" "web" {
 }
 
 resource "aws_key_pair" "auth" {
-  key_name   = var.key_name
+  key_name   = var.environment
   public_key = file(var.public_key_path)
 }
 
@@ -129,13 +129,13 @@ resource "aws_instance" "web" {
   # backend instances.
   subnet_id = aws_subnet.default.id
 
-  user_data = "${data.template_file.user_data.rendered}"
+  user_data = data.template_file.user_data.rendered
 
 }
 data "template_file" "user_data" {
   template = "${file("${path.module}/userdata.sh")}"
   vars = {
-    instance_text = "Hello from blah"
+    instance_text = "Hello from ${var.environment}"
     instance_port = "80"
   }
 }
