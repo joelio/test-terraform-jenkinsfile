@@ -1,7 +1,7 @@
 @Library(['terraform-pipeline@v5.12']) _
 
 Jenkinsfile.init(this)
-CredentialsPlugin.withBuildCredentials('test-creds').init()
+CredentialsPlugin.withBuildCredentials('tetst-creds').init()
 AnsiColorPlugin.init() // Decorate your TerraformEnvironmentStages with the AnsiColor plugin
 
 TerraformFormatCommand.withRecursive().withDiff()
