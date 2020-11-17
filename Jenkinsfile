@@ -33,7 +33,7 @@ ValidateFormatPlugin.init()
 def validate = new TerraformValidateStage()
 
 // Defines the stage instances
-def deployUat = new TerraformEnvironmentStage('uat')
+def deployUat = new TerraformEnvironmentStage('stage')
 def deployProd = new TerraformEnvironmentStage('prod')
 
 // Builder pattern to validate, run stage, approve on prod
