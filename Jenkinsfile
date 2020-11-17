@@ -2,6 +2,11 @@
 
 Jenkinsfile.init(this)
 
+
+ValidateFormatPlugin.init()
+TerraformFormatCommand.withRecursive().withDiff()
+TerraformDirectoryPlugin.withDirectory("terraform").init()
+
 def validate = new TerraformValidateStage()
 def deployQa = new TerraformEnvironmentStage('qa')
 def deployUat = new TerraformEnvironmentStage('uat')
