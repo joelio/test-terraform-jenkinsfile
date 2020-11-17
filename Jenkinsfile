@@ -1,10 +1,16 @@
 @Library(['terraform-pipeline@v5.12']) _
 withAWS(credentials:'tetst-creds') {
 
-environment {
-   S3_BACKEND_BUCKET = "remote-state-storage-test-lon-aws"
-   S3_BACKEND_REGION = "eu-west-2"
-}
+BuildWithParametersPlugin.withBooleanParameter([
+       name: 'PIPELINE_PREFERENCE',
+       description: 'Do you like pipelines?',
+       defaultValue: true
+     ])
+BuildWithParametersPlugin.withStringParameter([
+       name: 'PIPELINE_THOUGHTS',
+       description: 'What do you think about pipelines?',
+       defaultValue: 'They make deployments so easy'
+     ])
 
 
 Jenkinsfile.init(this)
