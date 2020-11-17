@@ -3,9 +3,9 @@
 Jenkinsfile.init(this)
 AnsiColorPlugin.init() // Decorate your TerraformEnvironmentStages with the AnsiColor plugin
 
-ValidateFormatPlugin.init()
 TerraformFormatCommand.withRecursive().withDiff()
 TerraformDirectoryPlugin.withDirectory("terraform").init()
+ValidateFormatPlugin.init()
 
 def validate = new TerraformValidateStage()
 def deployQa = new TerraformEnvironmentStage('qa')
