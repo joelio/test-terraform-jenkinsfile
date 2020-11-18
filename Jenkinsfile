@@ -19,6 +19,8 @@ withAWS(credentials:'tetst-creds') {
   // Would you start the fans, please!
   Jenkinsfile.init(this)
 
+  TargetPlugin.init() // Optionally limit plan/apply to specific targets
+
   // After creating a PullRequest, the plan results for each 
   // environment are posted as a comment to the PullRequest.
   // A GITHUB_TOKEN environment variable should contain your Github PAT
