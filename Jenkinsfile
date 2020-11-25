@@ -42,10 +42,12 @@ withAWS(credentials:'tetst-creds') {
   
   // Defines the stage and prod instances
   def deployStage = new TerraformEnvironmentStage('stage')
+  def deployUAT = new TerraformEnvironmentStage('UAT')
   def deployProd = new TerraformEnvironmentStage('prod')
   
   // Builder pattern to validate, run stage, approve on prod
   validate.then(deployStage)
+          .then(deployUAT)
           .then(deployProd)
           .build()
   
